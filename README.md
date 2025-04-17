@@ -21,4 +21,3 @@ Restarts topology, and the sdn controller. Then it runs provided test scenarios.
 **make clean:**
 
 Removes all junks added to different directories to run the application.
-

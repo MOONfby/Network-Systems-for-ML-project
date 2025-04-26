@@ -17,6 +17,10 @@ class MyTopo(Topo):
         # Initialize hosts for user zone
         h1 = self.addHost('h1', ip='10.0.0.50/24')
         h2 = self.addHost('h2', ip='10.0.0.51/24')
+
+        #MAC address for hosts
+        for host in [h1, h2]:
+            host.cmd('arp -s 100.0.0.45 00:00:00:00:00:45')
         
         # Initialize switch for user zone
         sw1 = self.addSwitch('sw1', dpid="1")
@@ -25,9 +29,11 @@ class MyTopo(Topo):
         self.addLink(h1, sw1)
         self.addLink(h2, sw1)
         
-        # Initialize napt between user zone and inferencing zone
-        napt = self.addSwitch('napt', dpid="4")
         
+        # Initialize napt between user zone and inferencing zone
+        napt = self.addSwitch('napt', dpid="4", ip='10.0.0.1/24')  # User zone interface
+        self.addSwitch('napt', dpid="4", ip='100.0.0.1/24')        # Inferencing zone interface        
+
         # Connect user zone switch to napt
         self.addLink(sw1, napt)
         
@@ -107,6 +113,9 @@ def startup_services(net):
     h2 = net.get('h2')
     h1.cmd('ip route add default via 10.0.0.1')
     h2.cmd('ip route add default via 10.0.0.1')
+
+    # Add default route for NAPT
+    napt.cmd('ip route add default via 100.0.0.1')
     
     # Set default routes for inferencing servers
     llm1 = net.get('llm1')

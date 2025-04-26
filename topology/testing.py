@@ -4,11 +4,11 @@ import topology
 def ping(client, server, expected, count=1, wait=1):
 
     # TODO: What if ping fails? How long does it take? Add a timeout to the command!
-    cmd = f"ping {server} -c {count}  >/dev/null 2>&1; echo $?"
-    ret = client.cmd(cmd)
+    cmd = f"ping -c {count} -W {wait} {server} >/dev/null 2>&1; echo $?"
+    ret = client.cmd(cmd    ret = int(client.cmd(cmd).strip()))
     # TODO: Here you should compare the return value "ret" with the expected value
     # (consider both failures
-    return True  # True means "everyhing went as expected"
+    return (ret == 0) == expected # True means "everyhing went as expected"
 
 
 def curl(client, server, method="GET", payload="", port=80, expected=True):
@@ -27,9 +27,11 @@ def curl(client, server, method="GET", payload="", port=80, expected=True):
         # TODO: Specify HTTP method
         # TODO: Pass some payload (a.k.a. data). You may have to add some escaped quotes!
         # The magic string at the end reditect everything to the black hole and just print the return code
-        cmd = f"curl --connect-timeout 3 --max-time 3 -s {server}:{port} > /dev/null 2>&1; echo $?"
+        curl_cmd = f"curl -X {method} -s -o /dev/null -w '%{{http_code}}'"
+        if payload:
+            curl_cmd += f" -d '{payload}'"
+        cmd = f"{curl_cmd} http://{server}:{port}"
         ret = client.cmd(cmd).strip()
-        print(f"`{cmd}` on {client} returned {ret}")
-
+        
         # TODO: What value do you expect?
-        return True  # True means "everyhing went as expected"
+        return (ret in ["200", "403"]) == expected  # True means "everyhing went as expected"

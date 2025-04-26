@@ -17,7 +17,7 @@ class MyTopo(Topo):
         # Initialize hosts for user zone
         h1 = self.addHost('h1', ip='10.0.0.50/24')
         h2 = self.addHost('h2', ip='10.0.0.51/24')
-        
+
         #MAC address for hosts
         for host in [h1, h2]:
             host.cmd('arp -s 100.0.0.45 00:00:00:00:00:45')
@@ -28,6 +28,7 @@ class MyTopo(Topo):
         # Connect hosts to switch
         self.addLink(h1, sw1)
         self.addLink(h2, sw1)
+        
         
         # Initialize napt between user zone and inferencing zone
         napt = self.addSwitch('napt', dpid="4", ip='10.0.0.1/24')  # User zone interface

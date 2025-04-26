@@ -2,6 +2,9 @@ define($VIRTUAL_IP 100.0.0.45, $VIRTUAL_MAC 00:00:00:00:00:45)
 
 // Port definitions matching actual Mininet interface names
 define($PORT1 lb1-eth1, $PORT2 lb1-eth2)
+//eth1: between ids and lb1
+//eth2: between lb1 and sw3
+
 
 // Input channels from devices
 fd1::FromDevice($PORT1, SNIFFER false, METHOD LINUX, PROMISC true)

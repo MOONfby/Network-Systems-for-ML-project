@@ -1,8 +1,49 @@
-// 2 variables to hold ports names
-define($PORT1 ids-eth1, $PORT2 ids-eth3)
+// Define the port names
+// * eth0: Default port of Mininet host
+// * eth1: Port connected to the sw2
+// * eth2: Port connected to the Insp device
+// * eth3: Port connected to the lb1
+define($IN ids-eth1, $INSP ids-eth2, $OUT ids-eth3)
+
+// Define the report path
+define($REPORT_PATH /results/ids_report.txt)
 
 // Script will run as soon as the router starts
-Script(print "Click forwarder on $PORT1 $PORT2")
+Script(print "Click forwarder on $IN $OUT\nClick connect Insp via $INSP")
+
+// From where to pick packets
+fd_in :: FromDevice($IN, SNIFFER false)
+fd_out :: FromDevice($OUT, SNIFFER false)
+
+// Where to send packets
+td_in :: ToDevice($IN)
+td_out :: ToDevice($OUT)
+td_insp :: ToDevice($INSP)
+
+// Define counter of packets throughput
+ctr_fd_in :: AverageCounter
+ctr_fd_out :: AverageCounter
+ctr_td_in :: AverageCounter
+ctr_td_out :: AverageCounter
+ctr_td_insp :: AverageCounter
+
+// ==================
+// Define the counter of packets traffic class
+// 1. ctr_ethernet: Ethernet packets (e.g., ARP, IPv4 etc.)
+// 2. ctr_ip: IP packets (e.g., ICMP, TCP, UDP etc.)
+// 3. ctr_icmp: ICMP packets (e.g., ping, traceroute etc.)
+// 4. ctr_http: HTTP packets (TCP port 80)
+// 5. ctr_http_method: http_method packets (e.g., GET, POST, PUT etc.)
+// 6. ctr_payload: payload packets (e.g., TCP payload, UDP payload etc.)
+// ===================
+
+ctr_ethernet :: AverageCounter
+ctr_ip :: AverageCounter
+ctr_icmp :: AverageCounter
+ctr_http :: AverageCounter
+ctr_http_method :: AverageCounter
+ctr_payload :: AverageCounter
+
 
 // Group common elements in a single block. $port is a parameter used just to print
 elementclass L2Forwarder {$port|

@@ -5,7 +5,12 @@ def ping(client, server, expected, count=1, wait=1):
 
     # TODO: What if ping fails? How long does it take? Add a timeout to the command!
     cmd = f"ping -c {count} -W {wait} {server} >/dev/null 2>&1; echo $?"
-    ret = client.cmd(cmd    ret = int(client.cmd(cmd).strip()))
+    ret_str = client.cmd(cmd).strip()
+    try:
+        ret = int(ret_str)
+    except ValueError:
+        # If conversion fails, treat as failure
+        ret = 1
     # TODO: Here you should compare the return value "ret" with the expected value
     # (consider both failures
     return (ret == 0) == expected # True means "everyhing went as expected"
@@ -18,7 +23,7 @@ def curl(client, server, method="GET", payload="", port=80, expected=True):
         return True in case of success, False if not
         """
 
-        if (isinstance(server, str) == 0):
+        if not isinstance(server, str):
             server_ip = str(server.IP())
         else:
             # If it's a string it should be the IP address of the node (e.g., the load balancer)

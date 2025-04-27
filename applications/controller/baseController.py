@@ -3,7 +3,7 @@ import pox.openflow.libopenflow_01 as of
 from pox.lib.addresses import IPAddr
 from pox.lib.util import dpid_to_str
 import pox.lib.packet as pkt
-from forwarding.l2_learning import LearningSwitch
+from pox.forwarding.l2_learning import LearningSwitch
 import subprocess
 import shlex
 import datetime

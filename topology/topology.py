@@ -128,12 +128,10 @@ if __name__ == "__main__":
                   controller=ctrl,
                   autoSetMacs=True,
                   autoStaticArp=True,
-                  mac_learning=True,
                   build=True,
                   cleanup=True)
-    
+
     startup_services(net)
-    
     # Start the network
     net.start()
 

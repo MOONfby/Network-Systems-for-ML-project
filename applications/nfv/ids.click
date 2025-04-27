@@ -6,7 +6,7 @@
 define($IN ids-eth1, $INSP ids-eth2, $OUT ids-eth3)
 
 // Define the report path
-define($REPORT_PATH /results/ids_report.txt)
+define($REPORT_PATH results/ids.report)
 
 // Script will run as soon as the router starts
 Script(print "IDS forwarder on $IN $OUT, IDS connect Insp via $INSP")

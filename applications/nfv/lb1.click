@@ -2,11 +2,12 @@ define($VIRTUAL_IP 100.0.0.45, $VIRTUAL_MAC 00:00:00:00:00:45)
 
 // Port definitions matching actual Mininet interface names
 define($PORT1 lb1-eth1, $PORT2 lb1-eth2)
-//eth1: between ids and lb1
-//eth2: between lb1 and sw3
+// eth1: between ids and lb1
+// eth2: between lb1 and sw3
 
 
 // Input channels from devices
+// "SNIFFER false" allows click steals the packet from the kernel
 fd1::FromDevice($PORT1, SNIFFER false, METHOD LINUX, PROMISC true)
 fd2::FromDevice($PORT2, SNIFFER false, METHOD LINUX, PROMISC true)
 
@@ -20,25 +21,41 @@ avg_in2 :: AverageCounter
 avg_out1 :: AverageCounter
 avg_out2 :: AverageCounter
 
-// ARP Handling Elements
+// ARP Handling Elements, ensures hosts can sesolve virtual IP to virtual MAC
 arpr :: ARPResponder($VIRTUAL_IP $VIRTUAL_MAC)
 arpq :: ARPQuerier($VIRTUAL_IP, $VIRTUAL_MAC)
+// arpq has two input ports：
+// input 0: For IP packets that need ARP resolution
+// input 1: For ARP replies (so the ARPQuerier can update its ARP cache/table with new information)
 
-// Round Robin Mapper for Load Balancing
-rr_mapper :: RoundRobinIPMapper($VIRTUAL_IP 80 - - 
+
+// Round Robin Mapper for Load Balancing HTTP traffic
+rr_mapper :: RoundRobinIPMapper($VIRTUAL_IP 80 - -    
                                100.0.0.40 80 - 
                                100.0.0.41 80 - 
                                100.0.0.42 80)
-rewriter :: IPRewriter(pattern rr_mapper)
+rewriter :: IPRewriter(pattern rr_mapper)             
+// input 0: handles the packets from clients to the virtual IP
+// input 1: handles the packets from servers back to the clients
+
 
 // Counters for specific traffic types
-arp_req_counter :: Counter
-arp_resp_counter :: Counter
-service_counter :: Counter
-icmp_counter :: Counter
-drop_counter :: Counter
+arp_req_counter :: Counter    //ARP requests
+arp_resp_counter :: Counter   //ARP responses
+service_counter :: Counter    //HTTP service packets
+icmp_counter :: Counter       //ICMP
+drop_counter :: Counter       //dropped packets
+
+
+
+
+
+
 
 // From IDS to servers pathway
+// numbers are packer header match patterns
+// "12/0806": 12 means offset 12 bytes from the start of the packet (Ethernet header's EtherType field), 0806 is the EtherType for ARP
+// "20/0001": means offset 32 bytes from the start, 0001 is the ARP opcode for "request"
 fd1 -> avg_in1 -> classifier1 :: Classifier(
     12/0806 20/0001,  // ARP requests
     12/0806 20/0002,  // ARP replies
@@ -46,11 +63,20 @@ fd1 -> avg_in1 -> classifier1 :: Classifier(
     -                 // Drop others
 )
 
+
 // ARP Request Handling (from IDS side)
 classifier1[0] -> arp_req_counter -> arpr -> avg_out1 -> td1
+// takes ARP requests from the classifier ->
+// count->
+// ARPResponder generates replies claiming the virtual IP belongs to the virtual MAC ->
+// count ->
+// sends reply back through the interface toward IDS
+
 
 // ARP Reply Handling (from IDS side)
 classifier1[1] -> arp_resp_counter -> [1]arpq -> avg_out1 -> td1
+// [1]arpq: sends to the ARPQuerier to update its ARP table
+
 
 // IP Packet Processing (from IDS side)
 classifier1[2] -> Strip(14) -> CheckIPHeader -> ip_classifier :: IPClassifier(
@@ -58,15 +84,30 @@ classifier1[2] -> Strip(14) -> CheckIPHeader -> ip_classifier :: IPClassifier(
     proto tcp and dst port 80,  // HTTP traffic
     -                           // Other IP traffic
 )
+// strip(14): strips the 14-byte Ethernet header
+
 
 // ICMP handling
 ip_classifier[0] -> icmp_counter -> ICMPPingResponder -> EtherEncap(0x0800, $VIRTUAL_MAC, 00:00:00:00:00:01) -> avg_out1 -> td1
+// ICMPPingResponder: generates replies to echo requests
+// EtherEncap: adds Ethernet header with virtual MAC as source
+
 
 // HTTP traffic - forward to servers using load balancer
 ip_classifier[1] -> service_counter -> [0]rewriter -> arpq -> avg_out2 -> td2
+// [0]rewriter: sends to rewriter (IPRewriter) for address translation based on the round-robin mapping
+// arpq: uses ARP querier to resolve server IPs to MACs
+
 
 // Drop other IP traffic
 ip_classifier[2] -> drop_counter -> Discard
+
+
+
+
+
+
+
 
 // From servers to IDS pathway
 fd2 -> avg_in2 -> classifier2 :: Classifier(
@@ -76,16 +117,24 @@ fd2 -> avg_in2 -> classifier2 :: Classifier(
     -                 // Drop others
 )
 
+
 // Return traffic from servers
 classifier2[2] -> Strip(14) -> CheckIPHeader -> IPClassifier(
     src 100.0.0.40 or src 100.0.0.41 or src 100.0.0.42, // From servers
     -                                                   // Other sources
 ) -> [1]rewriter -> arpq -> avg_out1 -> td1
 
+
 // ARP handling from server side
 classifier2[0] -> td2
 classifier2[1] -> td2
 classifier2[3] -> drop_counter -> Discard
+
+
+
+
+
+
 
 // Generate report on shutdown
 DriverManager(

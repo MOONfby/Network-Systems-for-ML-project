@@ -72,6 +72,7 @@ class MyTopo(Topo):
 
 def startup_services(net):
     # Start http services and executing commands you require on each host...
+    return
     print("Starting services...")
 
     # Start HTTP servers on llm1-3

@@ -141,18 +141,18 @@ classifier2[3] -> drop_counter -> Discard
 // Generate report on shutdown
 DriverManager(
     pause,
-    print > lb1.report "================= LB1 Report =================",
-    print > lb1.report "Input Packet rate (pps): $(avg_in1.rate) $(avg_in2.rate)",
-    print > lb1.report "Output Packet rate (pps): $(avg_out1.rate) $(avg_out2.rate)",
-    print > lb1.report "",
-    print > lb1.report "Total # of input packets: $(add $(avg_in1.count) $(avg_in2.count))",
-    print > lb1.report "Total # of output packets: $(add $(avg_out1.count) $(avg_out2.count))",
-    print > lb1.report "",
-    print > lb1.report "Total # of ARP requests: $(arp_req_counter.count)",
-    print > lb1.report "Total # of ARP responses: $(arp_resp_counter.count)",
-    print > lb1.report "",
-    print > lb1.report "Total # of service packets: $(service_counter.count)",
-    print > lb1.report "Total # of ICMP packets: $(icmp_counter.count)",
-    print > lb1.report "Total # of dropped packets: $(drop_counter.count)",
-    print > lb1.report "================================================"
+    print > result/lb1.report "================= LB1 Report =================",
+    print > result/lb1.report "Input Packet rate (pps): $(avg_in1.rate) $(avg_in2.rate)",
+    print > result/lb1.report "Output Packet rate (pps): $(avg_out1.rate) $(avg_out2.rate)",
+    print > result/lb1.report "",
+    print > result/lb1.report "Total # of input packets: $(add $(avg_in1.count) $(avg_in2.count))",
+    print > result/lb1.report "Total # of output packets: $(add $(avg_out1.count) $(avg_out2.count))",
+    print > result/lb1.report "",
+    print > result/lb1.report "Total # of ARP requests: $(arp_req_counter.count)",
+    print > result/lb1.report "Total # of ARP responses: $(arp_resp_counter.count)",
+    print > result/lb1.report "",
+    print > result/lb1.report "Total # of service packets: $(service_counter.count)",
+    print > result/lb1.report "Total # of ICMP packets: $(icmp_counter.count)",
+    print > result/lb1.report "Total # of dropped packets: $(drop_counter.count)",
+    print > result/lb1.report "================================================"
 )

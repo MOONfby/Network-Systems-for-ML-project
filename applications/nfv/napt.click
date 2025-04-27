@@ -182,7 +182,7 @@ eth2[2] -> dropL2_2
 // Write counters to napt.report on shutdown
 DriverManager(
     
-    file "napt.report",
+    file "result/napt.report",
     print "Shutting down NAPT router",  // log shutdown event
     pause,                              // wait for termination signal
 

@@ -1,3 +1,4 @@
+
 from mininet.topo import Topo
 from mininet.net import Mininet
 from mininet.node import Switch
@@ -11,159 +12,138 @@ import time
 
 class MyTopo(Topo):
     def __init__(self):
+
         # Initialize topology
         Topo.__init__(self)
-        
+
+        # This is the implementation of the topology for the project
+        # Please update the IP addresses to the correct ones
+        # You can update the topology as you see fit
+
         # Initialize hosts for user zone
         h1 = self.addHost('h1', ip='10.0.0.50/24')
         h2 = self.addHost('h2', ip='10.0.0.51/24')
-
-        #MAC address for hosts
-        for host in [h1, h2]:
-            host.cmd('arp -s 100.0.0.45 00:00:00:00:00:45')
-        
         # Initialize switch for user zone
-        sw1 = self.addSwitch('sw1', dpid="1")
-        
+        s1 = self.addSwitch('s1', dpid="1")
         # Connect hosts to switch
-        self.addLink(h1, sw1)
-        self.addLink(h2, sw1)
-        
-        
-        # Initialize napt between user zone and inferencing zone
-        napt = self.addSwitch('napt', dpid="4", ip='10.0.0.1/24')  # User zone interface
-        self.addSwitch('napt', dpid="4", ip='100.0.0.1/24')        # Inferencing zone interface        
+        self.addLink(h1, s1)
+        self.addLink(h2, s1)
 
+        # Initialize napt between user zone and inferencing zone
+        napt = self.addSwitch('napt', dpid="4") # dpid is 4 because we have 3 normal switches in the topology
         # Connect user zone switch to napt
-        self.addLink(sw1, napt)
-        
-        # Initialize core switch for inferencing zone
-        sw2 = self.addSwitch('sw2', dpid="2")
-        
-        # Connect napt to core switch
-        self.addLink(napt, sw2)
-        
+        self.addLink(s1, napt)
+
+        # Initalize access switch for inferencing zone
+        s2 = self.addSwitch('s2', dpid="2")
+        # Connect napt to access switch
+        self.addLink(napt, s2)
+
         # Initialize ids switch for inferencing zone
-        ids = self.addSwitch('ids', dpid="5")
-        
-        # Connect core switch to ids switch
-        self.addLink(sw2, ids)
-        
+        ids = self.addSwitch('ids', dpid="5") # dpid is 5 because we have 3 normal switches and 1 napt switch in the topology
+        # Connect access switch to ids switch
+        self.addLink(s2, ids)
+
         # Create inspection server for inferencing zone
         insp = self.addHost('insp', ip='100.0.0.30/24')
         
         # Connect inspection server to ids switch
         self.addLink(insp, ids)
-        
+
         # Create load balancer for inferencing zone
         lb1 = self.addSwitch('lb1', dpid="6")
-        
         # Connect ids switch to load balancer
         self.addLink(ids, lb1)
-        
+
         # Create switch to connect load balancer to inferencing servers
-        sw3 = self.addSwitch('sw3', dpid="3")
-        
+        s3 = self.addSwitch('s3', dpid="3")
         # Connect load balancer to switch
-        self.addLink(lb1, sw3)
-        
-        # Create inferencing servers
+        self.addLink(lb1, s3)
+
+        # Create inferencing servers 
         llm1 = self.addHost('llm1', ip='100.0.0.40/24')
         llm2 = self.addHost('llm2', ip='100.0.0.41/24')
         llm3 = self.addHost('llm3', ip='100.0.0.42/24')
-        
+
         # Connect inferencing servers to switch
-        self.addLink(llm1, sw3)
-        self.addLink(llm2, sw3)
-        self.addLink(llm3, sw3)
+        self.addLink(llm1, s3)
+        self.addLink(llm2, s3)
+        self.addLink(llm3, s3)
 
 def startup_services(net):
-    # Start HTTP services on the inferencing servers
-    print("Starting HTTP services on inferencing servers...")
+    # Start http services and executing commands you require on each host...
+    print("Starting services...")
+
+    # Start HTTP servers on llm1-3
+    # For each LLM server, create a directory and start a simple HTTP server
     for i in range(1, 4):
         server = net.get(f'llm{i}')
-        
-        # Create a directory for HTTP files
         server.cmd('mkdir -p /home/mininet/web')
-        
-        # Create test HTML files (3-5 files as required)
-        for j in range(1, 6):  # Creating 5 test pages
+
+        # Creat 5 HTML pages for each server
+        for j in range(1, 6):
             server.cmd(f'echo "<html><body><h1>Test Page {j} from LLM Server {i}</h1></body></html>" > /home/mininet/web/page{j}.html')
-        
-        # Create an index.html file
-        server.cmd(f'echo "<html><body><h1>LLM Server {i}</h1><ul>' + 
-                   ''.join([f'<li><a href=\\"page{j}.html\\">Test Page {j}</a></li>' for j in range(1, 6)]) + 
-                   '</ul></body></html>" > /home/mininet/web/index.html')
-        
-        # Start a simple HTTP server on port 80 as mentioned in the project description
-        server.cmd('cd /home/mininet/web && python3 -m http.server 80 &')
-        
+        server.cmd(f'cd /home/mininet/web && python3 -m http.server 80 &')
+
     print("HTTP services started")
-
-    # Set up packet capture on the inspector server
-    insp = net.get('insp')
-    insp.cmd('tcpdump -i insp-eth0 -w /tmp/inspector_capture.pcap &')
-    print("Packet capture started on inspector server")
-
-    # Set the default routes
-    print("Setting up default routes...")
     
-    # Set default routes for hosts in the user zone
-    h1 = net.get('h1')
-    h2 = net.get('h2')
-    h1.cmd('ip route add default via 10.0.0.1')
-    h2.cmd('ip route add default via 10.0.0.1')
+    # Setup IP addresses on NAPT interfaces
+    napt = net.get('napt')
+    intfs = napt.intfList()
+    napt.cmd(f'ifconfig {intfs[0]} 10.0.0.1/24 up')
+    napt.cmd(f'ifconfig {intfs[1]} 100.0.0.1/24 up')
+    print("NAPT interfaces configured.")
 
-    # Add default route for NAPT
-    napt.cmd('ip route add default via 100.0.0.1')
-    
-    # Set default routes for inferencing servers
-    llm1 = net.get('llm1')
-    llm2 = net.get('llm2')
-    llm3 = net.get('llm3')
-    llm1.cmd('ip route add default via 100.0.0.1')
-    llm2.cmd('ip route add default via 100.0.0.1')
-    llm3.cmd('ip route add default via 100.0.0.1')
-    
-    # Set default route for inspector server
+    # Setup static ARP only for lb1
+    lb1 = net.get('lb1')
+    lb1.cmd('arp -s 100.0.0.45 00:00:00:00:00:45')
+    print("Static ARP entry configured for lb1.")
+
+    # Setup default routes for hosts
+    insp= net.get('insp')
+    net.get('h1').cmd('ip route add default via 10.0.0.1')
+    net.get('h2').cmd('ip route add default via 10.0.0.1')
+    net.get('llm1').cmd('ip route add default via 100.0.0.1')
+    net.get('llm2').cmd('ip route add default via 100.0.0.1')
+    net.get('llm3').cmd('ip route add default via 100.0.0.1')
     insp.cmd('ip route add default via 100.0.0.1')
-    
-    print("Default routes set up")
+    print("Default routes set up.")
+
+
+
+
+
+# topos = {'mytopo': (lambda: MyTopo())}
 
 if __name__ == "__main__":
+
     # Create topology
     topo = MyTopo()
-    
+
     ctrl = RemoteController("c0", ip="127.0.0.1", port=6633)
-    
+
     # Create the network
     net = Mininet(topo=topo,
                   switch=OVSSwitch,
                   controller=ctrl,
                   autoSetMacs=True,
                   autoStaticArp=True,
-                  build=True,
+                  build=False,
                   cleanup=True)
     
-    # Start the network
+    net.configureControlNetwork = lambda *args, **kwargs: None
+
+    net.build()
     net.start()
-    
-    # Start services
+
     startup_services(net)
     
+    # Start the network
+    # net.start()
+
     # Start the CLI
     CLI(net)
-    
-    # Clean up before stopping the network
-    print("Cleaning up...")
-    
-    # Stop HTTP servers
-    for i in range(1, 4):
-        server = net.get(f'llm{i}')
-        server.cmd('pkill -f "python3 -m http.server"')
-    
-    # Stop packet capture on inspector
-    insp = net.get('insp')
-    insp.cmd('pkill tcpdump')
-    
+
+    # You may need some commands before stopping the network! If you don't, leave it empty
+    ### COMPLETE THIS PART ###
     net.stop()

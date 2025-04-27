@@ -113,6 +113,10 @@ ctr_method_drop :: Counter;
 // 1. Offset 54: Ethernet header + IP header + TCP header
 // 2. Classify PUT and POST methods
 // 3. Others sent to insp
+//
+// Note:
+// Strictly restrict method format as "POST" and "PUT",
+// other irregular methot format likt "PoSt" will be dropped to INSP
 // ==============
 
 method_classifier :: Classifier(

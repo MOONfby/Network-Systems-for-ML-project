@@ -72,7 +72,29 @@ class MyTopo(Topo):
 
 def startup_services(net):
     # Start http services and executing commands you require on each host...
-    return
+    
+    # Default route for hosts
+    net.get('h1').cmd('ip route add default via 10.0.0.1')
+    net.get('h2').cmd('ip route add default via 10.0.0.1')
+
+    # Default route for llm servers
+    net.get('llm1').cmd('ip route add default via 100.0.0.1')
+    net.get('llm2').cmd('ip route add default via 100.0.0.1')
+    net.get('llm3').cmd('ip route add default via 100.0.0.1')
+    net.get('insp').cmd('ip route add default via 100.0.0.1')
+    
+    # 配置NAPT接口的IP地址
+    net.get('napt').cmd('ifconfig napt-eth1 10.0.0.1 netmask 255.255.255.0')
+    net.get('napt').cmd('ifconfig napt-eth2 100.0.0.1 netmask 255.255.255.0')
+    
+    # 开启IP转发
+    net.get('napt').cmd('sysctl -w net.ipv4.ip_forward=1')
+
+    # Setup static ARP only for lb1
+    net.get('lb1').cmd('arp -s 100.0.0.45 00:00:00:00:00:45')
+    print("Static ARP entry configured for lb1.")
+    
+    
     print("Starting services...")
 
     # Start HTTP servers on llm1-3
@@ -88,6 +110,8 @@ def startup_services(net):
 
     print("HTTP services started")
     
+    return
+
     # Setup IP addresses on NAPT interfaces
     napt = net.get('napt')
     intfs = napt.intfList()

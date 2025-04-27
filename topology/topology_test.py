@@ -50,6 +50,14 @@ def run_tests(net):
         print("  [FAIL] ICMP outbound failed for h2")
         all_ok = False
 
+    # Test outbound ICMP: h1 → server llm3 via source-NAT
+    print("==> Testing h1 → llm3 (100.0.0.42) through NAPT")
+    if testing.ping(h1, '100.0.0.42', expected=True):
+        print("  [OK] ICMP outbound via SNAT → llm3 (h1)")
+    else:
+        print("  [FAIL] ICMP outbound failed for llm3")
+        all_ok = False
+
     # Test inbound to private IP: llm1 → h1 should be blocked (no direct route)
     print("==> Testing inbound llm1 → h1 (10.0.0.50) should be blocked")
     if testing.ping(net.get('llm1'), '10.0.0.50', expected=False):

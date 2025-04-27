@@ -181,10 +181,10 @@ eth2[2] -> dropL2_2
 // DriverManager keeps script alive and prints summary on shutdown
 // Write counters to napt.report on shutdown
 DriverManager(
-    // Output file parameter (may depend on Click version)
+    
     file "napt.report",
-    print "Shutting down NAPT router",
-    pause,
+    print "Shutting down NAPT router",  // log shutdown event
+    pause,                              // wait for termination signal
 
     // Ingress/Egress rates
     print "Port1 InRate (pps): $(inAvg1.rate)",

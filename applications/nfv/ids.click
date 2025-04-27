@@ -230,5 +230,5 @@ DriverManager(
 	print "Total # of DELETE Packets: $(ctr_delete.count)",
 	print "Total # of Other Payload (to INSP): $(ctr_inject_drop.count)",
     print "===================",
-    print > ids.report
+    print > $REPORT_PATH,
 )

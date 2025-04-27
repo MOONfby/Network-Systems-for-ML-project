@@ -128,18 +128,14 @@ if __name__ == "__main__":
                   controller=ctrl,
                   autoSetMacs=True,
                   autoStaticArp=True,
-                  build=False,
+                  mac_learning=True,
+                  build=True,
                   cleanup=True)
     
-    net.configureControlNetwork = lambda *args, **kwargs: None
-
-    net.build()
-    net.start()
-
     startup_services(net)
     
     # Start the network
-    # net.start()
+    net.start()
 
     # Start the CLI
     CLI(net)

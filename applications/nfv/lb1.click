@@ -5,6 +5,8 @@ define($PORT1 lb1-eth1, $PORT2 lb1-eth2)
 // eth1: between ids and lb1
 // eth2: between lb1 and sw3
 
+// Script will run as soon as the router starts
+Script(print "Click lb1 on $PORT1 $PORT2")
 
 // Input channels from devices
 // "SNIFFER false" allows click steals the packet from the kernel

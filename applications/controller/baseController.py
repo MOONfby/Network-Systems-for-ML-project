@@ -46,19 +46,19 @@ class controller (object):
             self.devices[id] = LearningSwitch(event.connection, False)
         elif(id==4):
             # This is the NAPT switch
-            # You should run the NAPT module click node (/TODO Replace napt.click with your NAPT implementation)
             log.info("Starting NAPT")
-            self.devices[id] = click_wrapper.start_click("/opt/pox/ext/napt.click", "", "/tmp/napt.stdout", "/tmp/napt.stderr")
+            # Click script
+            self.devices[id] = click_wrapper.start_click("nfv/napt.click", "", "/tmp/napt.stdout", "/tmp/napt.stderr")
         elif(id==5):
             # This is the IDS switch
-            # You should run the IDS module click node (/TODO Replace ids.click with your ids implementation)
             log.info("Starting IDS")
-            self.devices[id] = click_wrapper.start_click("/opt/pox/ext/ids.click", "", "/tmp/ids.stdout", "/tmp/ids.stderr")
+            # IDS Click script
+            self.devices[id] = click_wrapper.start_click("nfv/ids.click", "", "/tmp/ids.stdout", "/tmp/ids.stderr")
         elif(id==6):
             # This is the Load Balancer switch
-            # You should run the Load Balancer module click node (/TODO Replace lb1.click with your load balancer implementation)
             log.info("Starting Load Balancer")
-            self.devices[id] = click_wrapper.start_click("/opt/pox/ext/lb1.click", "", "/tmp/lb1.stdout", "/tmp/lb1.stderr")
+            # load-balancer Click script
+            self.devices[id] = click_wrapper.start_click("nfv/lb1.click", "", "/tmp/lb1.stdout", "/tmp/lb1.stderr")
         else:
             # Error
             log.error("Unknown device connected to the controller")
@@ -74,14 +74,25 @@ class controller (object):
         It should be called by each element in your application when a new source MAC is seen
         """
        
-        # TODO: More logic needed here!
         # self.firstSeenAt[mac] = (where, datetime.datetime.now().isoformat())
         if mac not in self.firstSeenAt:
             log.info(f"New MAC {mac} seen at {where}")
             self.firstSeenAt[mac] = (where, datetime.datetime.now().isoformat())
         else:
             log.info(f"MAC {mac} is already in the firstSeenAt dictionary")
-
+        now = datetime.datetime.now().isoformat()
+        if mac not in self.firstSeenAt:
+            # first time we ever see this MAC—record where and when
+            log.info(f"New MAC {mac} seen at {where} (firstSeenAt)")
+            self.firstSeenAt[mac] = (where, now)
+        else:
+            old_where, old_time = self.firstSeenAt[mac]
+            if where != old_where:
+                # host moved: log a warning so we can detect mobility/anomalies
+                log.warning(f"MAC {mac} moved from {old_where} to {where}; first seen at {old_time}")
+        else:
+                # same location as before—no change in first-seen
+                log.debug(f"MAC {mac} still at {where}; first seen at {old_time}")
 
 
 

@@ -84,7 +84,7 @@ class controller (object):
             if where != old_where:
                 # host moved: log a warning so we can detect mobility/anomalies
                 log.warning(f"MAC {mac} moved from {old_where} to {where}; first seen at {old_time}")
-        else:
+            else:
                 # same location as before—no change in first-seen
                 log.debug(f"MAC {mac} still at {where}; first seen at {old_time}")
 

@@ -76,12 +76,6 @@ class controller (object):
        
         # self.firstSeenAt[mac] = (where, datetime.datetime.now().isoformat())
         if mac not in self.firstSeenAt:
-            log.info(f"New MAC {mac} seen at {where}")
-            self.firstSeenAt[mac] = (where, datetime.datetime.now().isoformat())
-        else:
-            log.info(f"MAC {mac} is already in the firstSeenAt dictionary")
-        now = datetime.datetime.now().isoformat()
-        if mac not in self.firstSeenAt:
             # first time we ever see this MAC—record where and when
             log.info(f"New MAC {mac} seen at {where} (firstSeenAt)")
             self.firstSeenAt[mac] = (where, now)

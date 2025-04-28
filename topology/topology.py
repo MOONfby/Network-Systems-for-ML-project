@@ -33,11 +33,13 @@ class MyTopo(Topo):
         napt = self.addSwitch('napt', dpid="4") # dpid is 4 because we have 3 normal switches in the topology
         # Connect user zone switch to napt
         self.addLink(s1, napt)
+        # self.addLink(s1, napt, intfName2='napt-eth1', params2={'mac': '02:00:00:00:00:01'})
 
         # Initalize access switch for inferencing zone
         s2 = self.addSwitch('s2', dpid="2")
         # Connect napt to access switch
         self.addLink(napt, s2)
+        # self.addLink(napt, s2, intfName1='napt-eth2', params1={'mac': '02:00:00:00:00:02'})
 
         # Initialize ids switch for inferencing zone
         ids = self.addSwitch('ids', dpid="5") # dpid is 5 because we have 3 normal switches and 1 napt switch in the topology
@@ -75,7 +77,12 @@ def startup_services(net):
     
     # Default route for hosts
     net.get('h1').cmd('ip route add default via 10.0.0.1')
+    net.get('h1').cmd('arp -s 10.0.0.1 02:00:00:00:00:01')
+    net.get('h1').cmd('arp -s 100.0.0.45 00:00:00:00:00:45')
+
     net.get('h2').cmd('ip route add default via 10.0.0.1')
+    net.get('h2').cmd('arp -s 10.0.0.1 02:00:00:00:00:01')
+    net.get('h2').cmd('arp -s 100.0.0.45 00:00:00:00:00:45')
 
     # Default route for llm servers
     net.get('llm1').cmd('ip route add default via 100.0.0.1')
@@ -86,12 +93,16 @@ def startup_services(net):
     # 配置NAPT接口的IP地址
     net.get('napt').cmd('ifconfig napt-eth1 10.0.0.1 netmask 255.255.255.0')
     net.get('napt').cmd('ifconfig napt-eth2 100.0.0.1 netmask 255.255.255.0')
+    net.get('napt').cmd('ifconfig napt-eth1 hw ether 02:00:00:00:00:01')
+    net.get('napt').cmd('ifconfig napt-eth2 hw ether 02:00:00:00:00:02')
+    # net.get('napt').cmd('arp -s 10.0.0.1 02:00:00:00:00:01')
+    # net.get('napt').cmd('arp -s 100.0.0.1 02:00:00:00:00:02')
     
     # 开启IP转发
     net.get('napt').cmd('sysctl -w net.ipv4.ip_forward=1')
 
     # Setup static ARP only for lb1
-    net.get('lb1').cmd('arp -s 100.0.0.45 00:00:00:00:00:45')
+    # net.get('lb1').cmd('arp -s 100.0.0.45 00:00:00:00:00:45')
     print("Static ARP entry configured for lb1.")
     
     
@@ -111,28 +122,6 @@ def startup_services(net):
     print("HTTP services started")
     
     return
-
-    # Setup IP addresses on NAPT interfaces
-    napt = net.get('napt')
-    intfs = napt.intfList()
-    napt.cmd(f'ifconfig {intfs[0]} 10.0.0.1/24 up')
-    napt.cmd(f'ifconfig {intfs[1]} 100.0.0.1/24 up')
-    print("NAPT interfaces configured.")
-
-    # Setup static ARP only for lb1
-    lb1 = net.get('lb1')
-    lb1.cmd('arp -s 100.0.0.45 00:00:00:00:00:45')
-    print("Static ARP entry configured for lb1.")
-
-    # Setup default routes for hosts
-    insp= net.get('insp')
-    net.get('h1').cmd('ip route add default via 10.0.0.1')
-    net.get('h2').cmd('ip route add default via 10.0.0.1')
-    net.get('llm1').cmd('ip route add default via 100.0.0.1')
-    net.get('llm2').cmd('ip route add default via 100.0.0.1')
-    net.get('llm3').cmd('ip route add default via 100.0.0.1')
-    insp.cmd('ip route add default via 100.0.0.1')
-    print("Default routes set up.")
 
 
 

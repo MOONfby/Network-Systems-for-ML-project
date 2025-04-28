@@ -146,7 +146,7 @@ if __name__ == "__main__":
                   cleanup=True)
 
     startup_services(net)
-    # Start the network
+    # Start the  network
     net.start()
 
     # Start the CLI

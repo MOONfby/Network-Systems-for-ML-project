@@ -95,6 +95,8 @@ def startup_services(net):
     net.get('napt').cmd('ifconfig napt-eth2 100.0.0.1 netmask 255.255.255.0')
     net.get('napt').cmd('ifconfig napt-eth1 hw ether 02:00:00:00:00:01')
     net.get('napt').cmd('ifconfig napt-eth2 hw ether 02:00:00:00:00:02')
+    net.get('napt').cmd('ifconfig napt-eth1 10.0.0.1/24 up')
+    net.get('napt').cmd('ifconfig napt-eth2 100.0.0.1/24 up')
     # net.get('napt').cmd('arp -s 10.0.0.1 02:00:00:00:00:01')
     # net.get('napt').cmd('arp -s 100.0.0.1 02:00:00:00:00:02')
     

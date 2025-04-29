@@ -3,6 +3,7 @@
 // $PORT1: connects to the User Zone (h1, h2 side)
 // $PORT2: connects to the Inferencing Zone (servers side)
 define($PORT1 napt-eth1, $PORT2 napt-eth2);
+define($PORT1_MAC  02:00:00:00:00:01, $PORT2_MAC  02:00:00:00:00:02);
 
 //require(library ./forwarder.click)
 //Forwarder($PORT1, $PORT2, $VERBOSE)
@@ -40,9 +41,13 @@ td2::ToDevice($PORT2, METHOD LINUX);
 
 // ARP Responders for User and Inferencing Zones
 // Responds to ARP requests asking for 10.0.0.1 (User Zone side).
-user_arp_responder :: ARPResponder(10.0.0.1 02:00:00:00:00:01);
+user_arp_responder :: ARPResponder(10.0.0.1  $PORT1_MAC);
 // Responds to ARP requests asking for 100.0.0.1 (Inferencing Zone side).
-inf_arp_responder  :: ARPResponder(100.0.0.1 02:00:00:00:00:02);
+inf_arp_responder  :: ARPResponder(100.0.0.1 $PORT2_MAC);
+
+// ARP queriers so that Click learns next-hop MAC before sending
+arpQueryOut :: ARPQuerier(100.0.0.45, $PORT2_MAC);  // for traffic heading into IZ
+arpQueryIn  :: ARPQuerier(10.0.0.1,   $PORT1_MAC);  // for traffic heading back to UZ
 
 // IP and ICMP Rewriters
 // - snat: Source NAT for outbound TCP (User -> Server).
@@ -109,11 +114,11 @@ ethClassifier1[2]
 
 // TCP packets (Outbound traffic)
 // TCP: Source NAT then forward
-ipClassifier1[0] -> tcpCnt1 -> snat -> Queue -> outAvg2 -> td2;
+ipClassifier1[0] -> tcpCnt1 -> snat -> Queue -> arpQueryOut -> outAvg2 -> td2;
 
 // ICMP Echo Request (Ping Outbound)
 // ICMP Echo Request: NAT and forward
-ipClassifier1[1] -> icmpCnt1 -> Queue -> outAvg2 -> td2;
+ipClassifier1[1] -> icmpCnt1 -> Queue -> arpQueryOut -> outAvg2 -> td2;
 
 // ICMP Echo Reply (not expected from User Zone) — drop
 ipClassifier1[2] -> dropCnt1 -> Discard;
@@ -139,15 +144,15 @@ ethClassifier2[2]
 
 // TCP packets (Inbound traffic)
 // TCP: Destination NAT then forward
-ipClassifier2[0] -> tcpCnt2 -> dnat -> Queue -> outAvg1 -> td1;
+ipClassifier2[0] -> tcpCnt2 -> dnat -> Queue -> arpQueryIn -> outAvg1 -> td1;
 
 // ICMP Echo Request (from servers)
 // ICMP Echo Request: NAT and forward
-ipClassifier2[1] -> icmpCnt2 -> Queue -> outAvg1 -> td1;
+ipClassifier2[1] -> icmpCnt2 -> Queue -> arpQueryIn -> outAvg1 -> td1;
 
 // ICMP Echo Reply (from servers)
 // ICMP Echo Reply: NAT and forward
-ipClassifier2[2] -> icmpCnt2 -> Queue -> outAvg1 -> td1;
+ipClassifier2[2] -> icmpCnt2 -> Queue -> arpQueryIn -> outAvg1 -> td1;
 
 // Other IP traffic — drop
 ipClassifier2[3] -> dropCnt2 -> Discard;

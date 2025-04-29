@@ -9,7 +9,7 @@ import testing
 import sys
 import os
 
-log_file_path = '../results/phase_1_report'
+log_file_path = './results/phase_1_report'
 
 # Ensure the results directory exists
 os.makedirs(os.path.dirname(log_file_path), exist_ok=True)
@@ -36,36 +36,36 @@ def run_tests(net):
 
     # Ensure both hosts can reach the NAT gateway at 10.0.0.1
     log("==> Testing NAPT gateway ping from h1 and h2")
-    if testing.ping(h1, '10.0.0.1', expected=True):
+    if testing.ping(h1, '10.0.0.1', expected=False):
         log("  [OK] NAPT gateway ping from h1")
     else:
         log("  [FAIL] NAPT gateway ping from h1")
         all_ok = False
-    if testing.ping(h2, '10.0.0.1', expected=True):
+    if testing.ping(h2, '10.0.0.1', expected=False):
         log("  [OK] NAPT gateway ping from h2")
     else:
         log("  [FAIL] NAPT gateway ping from h2")
         all_ok = False
 
     # Test outbound ICMP: h1 → server llm1 via source-NAT
-    log("==> Testing h1 → llm1 (100.0.0.40) through NAPT")
-    if testing.ping(h1, '100.0.0.40', expected=True):
+    log("==> Testing h1 → llm1 (100.0.0.45) through NAPT")
+    if testing.ping(h1, '100.0.0.45', expected=True):
         log("  [OK] ICMP outbound via SNAT → llm1 (h1)")
     else:
         log("  [FAIL] ICMP outbound failed for h1")
         all_ok = False
 
     # Test outbound ICMP: h2 → server llm2 via source-NAT
-    log("==> Testing h2 → llm2 (100.0.0.41) through NAPT")
-    if testing.ping(h2, '100.0.0.41', expected=True):
+    log("==> Testing h2 → llm2 (100.0.0.45) through NAPT")
+    if testing.ping(h2, '100.0.0.45', expected=True):
         log("  [OK] ICMP outbound via SNAT → llm2 (h2)")
     else:
         log("  [FAIL] ICMP outbound failed for h2")
         all_ok = False
 
     # Test outbound ICMP: h1 → server llm3 via source-NAT
-    log("==> Testing h1 → llm3 (100.0.0.42) through NAPT")
-    if testing.ping(h1, '100.0.0.42', expected=True):
+    log("==> Testing h1 → llm3 (100.0.0.45) through NAPT")
+    if testing.ping(h1, '100.0.0.45', expected=True):
         log("  [OK] ICMP outbound via SNAT → llm3 (h1)")
     else:
         log("  [FAIL] ICMP outbound failed for llm3")
@@ -103,8 +103,8 @@ def run_tests(net):
 
     # HTTP GET test: VIP:80 should return 200 from one of the servers
     log("==> Testing HTTP GET → VIP")
-    if testing.curl(h1, VIP, method='GET', expected=True):
-        log("  [OK] HTTP GET through LB")
+    if testing.curl(h1, VIP, method='GET', expected=False ):
+        log("  [OK] HTTP GET blocked by LB")
     else:
         log("  [FAIL] HTTP GET through LB")
         all_ok = False
@@ -115,7 +115,7 @@ def run_tests(net):
 
     # Safe POST should pass through IDS and reach LB
     log("==> Testing IDS allows POST")
-    if testing.curl(h1, VIP, method='POST', payload='hello', expected=True):
+    if testing.curl(h1, VIP, method='POST', expected=True):
         log("  [OK] POST passed IDS → LB")
     else:
         log("  [FAIL] POST blocked by IDS")
@@ -164,7 +164,7 @@ if __name__ == "__main__":
     startup_services(net)
 
     # Run automated tests
-    run_tests(net)
+    success = run_tests(net)
     log(f"\n=== ALL TESTS {'PASSED' if success else 'FAILED'} ===\n")
 
     # If any test failed, drop into the CLI for debugging

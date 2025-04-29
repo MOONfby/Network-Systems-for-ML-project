@@ -239,40 +239,50 @@ lb1_ethernet_classifier[2] -> ctr_lb1_ethernet_drop -> Discard; // Other Dropped
 
 // Report output
 DriverManager(
-	wait,
-	print > /home/ik2221/Network-Systems-for-ML-project/results/ids.report "
-    ================================ IDS Report ===================
+	pause,
+    print > ./results/ids.report "
+    ============================= IDS Report =============================
     Input Packet Rate (pps): $(add $(rate_fr_s1.rate) $(rate_fr_lb1.rate))
     Output Packet Rate (pps): $(add $(rate_to_s1.rate) $(rate_to_lb1.rate))
 
     Total # of input packets: $(add $(rate_fr_s1.count) $(rate_fr_lb1.count))
     Total # of output packets: $(add $(rate_to_s1.count) $(rate_to_lb1.count) $(rate_to_insp.count))
 
+    ====================== Level 1: Ethernet header ======================
     Total # of ARP packets: $(add $(ctr_s1_arp.count) $(ctr_lb1_arp.count))
     Total # of IP packets: $(add $(ctr_s1_ip.count) $(ctr_lb1_ip.count))
-    Total # of HTTP packets: $(ctr_http.count)
+    Total # of dropped packets (ethernet drop): $(add $(ctr_s1_ethernet_drop.count) $(ctr_lb1_ethernet_drop.count))
+
+    =================== Level 2: IP + TCP header ====================
+    Total # of ICMP packets: $(ctr_icmp.count)
+    Total # of TCP signaling packets: $(ctr_tcp_signaling.count)
     
+    Total # of HTTP packets (TCP port 80): $(ctr_http.count)
+    Total # of dropped packets (IP drop): $(ctr_ip_drop.count)
+
+    =================== Level 3: HTTP payload ====================
+
     Total # of HTTP PUT packets: $(ctr_put.count)
     Total # of HTTP POST packets: $(ctr_post.count)
     Total # of HTTP GET packets: $(ctr_get.count)
-
     Total # of HTTP HEAD packets: $(ctr_head.count)
     Total # of HTTP OPTIONS packets: $(ctr_options.count)
     Total # of HTTP TRACE packets: $(ctr_trace.count)
     Total # of HTTP DELETE packets: $(ctr_delete.count)
     Total # of HTTP CONNECT packets: $(ctr_connect.count)
 
-    PUT payload check:
+    =================== Level 4: HTTP payload ====================
+
     Total # of cat /etc/passwd Packets: $(ctr_pw.count)
     Total # of cat /var/log Packets: $(ctr_log.count)
     Total # of INSERT Packets: $(ctr_insert.count)
     Total # of UPDATE Packets: $(ctr_update.count)
     Total # of DELETE Packets: $(ctr_pl_delete.count)
-    Total # of Other Payload (to INSP): $(ctr_inject_drop.count)
     
+    =================== Drop and suspicious packets ====================
     Total # of dropped packets: $(add $(ctr_s1_ethernet_drop.count) $(ctr_ip_drop.count) $(ctr_lb1_ethernet_drop.count))
     Packet Rate to INSP (pps): $(rate_to_insp.rate)
-    Total # of packets to INSP: $(ctr_to_insp.count)
+    Total # of packets to INSP: $(rate_to_insp.count)
     "
 
 )

@@ -7,6 +7,7 @@ controller_file := $(results_dir)phase_1_controller_logs.txt
 # Complete the makefile as you prefer!
 topo:
 	@echo "starting the topology! (i.e., running mininet)"
+	mkdir -p results
 	sudo python ./topology/topology.py
 
 app:
@@ -20,6 +21,8 @@ app:
 
 test:
 	@echo "starting test scenarios!"
+	rm -rf $(results_dir)*
+	mkdir -p $(results_dir)
 	touch $(results_dir)ids.report
 	touch $(results_dir)lb1.report
 	touch $(results_dir)napt.report

@@ -1,3 +1,0 @@
-Static ARP entry configured for lb1.
-Starting services...
-HTTP services started

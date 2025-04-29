@@ -149,7 +149,7 @@ http_method_classifier :: Classifier(
 	// Offset 66 (exp value): Ethernet header + IP header + TCP header
 	66/504f5354,						// POST
    	66/505554,							// PUT
-    66/474554,                          // GET
+    	66/474554,                          // GET
 	66/48454144,                        // HEAD
 	66/4f5054494f4e53, 					// OPTIONS
 	66/5452414345, 						// TRACE

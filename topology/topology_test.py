@@ -7,12 +7,25 @@ from mininet.node import OVSSwitch
 from topology import *
 import testing
 import sys
+import os
+
+log_file_path = '../results/phase_1_report'
+
+# Ensure the results directory exists
+os.makedirs(os.path.dirname(log_file_path), exist_ok=True)
+
 
 topos = {'mytopo': (lambda: MyTopo())}
 
 
+def log(msg):
+    with open(log_file_path, 'a') as f:
+        f.write(msg + '\n')
+
 def run_tests(net):
 
+    open(log_file_path, 'w').close()
+    
     # Grab the hosts from the net
     h1 = net.get('h1')
     h2 = net.get('h2')
@@ -22,56 +35,56 @@ def run_tests(net):
     # --- 1) NAPT tests ---
 
     # Ensure both hosts can reach the NAT gateway at 10.0.0.1
-    print("==> Testing NAPT gateway ping from h1 and h2")
+    log("==> Testing NAPT gateway ping from h1 and h2")
     if testing.ping(h1, '10.0.0.1', expected=True):
-        print("  [OK] NAPT gateway ping from h1")
+        log("  [OK] NAPT gateway ping from h1")
     else:
-        print("  [FAIL] NAPT gateway ping from h1")
+        log("  [FAIL] NAPT gateway ping from h1")
         all_ok = False
     if testing.ping(h2, '10.0.0.1', expected=True):
-        print("  [OK] NAPT gateway ping from h2")
+        log("  [OK] NAPT gateway ping from h2")
     else:
-        print("  [FAIL] NAPT gateway ping from h2")
+        log("  [FAIL] NAPT gateway ping from h2")
         all_ok = False
 
     # Test outbound ICMP: h1 → server llm1 via source-NAT
-    print("==> Testing h1 → llm1 (100.0.0.40) through NAPT")
+    log("==> Testing h1 → llm1 (100.0.0.40) through NAPT")
     if testing.ping(h1, '100.0.0.40', expected=True):
-        print("  [OK] ICMP outbound via SNAT → llm1 (h1)")
+        log("  [OK] ICMP outbound via SNAT → llm1 (h1)")
     else:
-        print("  [FAIL] ICMP outbound failed for h1")
+        log("  [FAIL] ICMP outbound failed for h1")
         all_ok = False
 
     # Test outbound ICMP: h2 → server llm2 via source-NAT
-    print("==> Testing h2 → llm2 (100.0.0.41) through NAPT")
+    log("==> Testing h2 → llm2 (100.0.0.41) through NAPT")
     if testing.ping(h2, '100.0.0.41', expected=True):
-        print("  [OK] ICMP outbound via SNAT → llm2 (h2)")
+        log("  [OK] ICMP outbound via SNAT → llm2 (h2)")
     else:
-        print("  [FAIL] ICMP outbound failed for h2")
+        log("  [FAIL] ICMP outbound failed for h2")
         all_ok = False
 
     # Test outbound ICMP: h1 → server llm3 via source-NAT
-    print("==> Testing h1 → llm3 (100.0.0.42) through NAPT")
+    log("==> Testing h1 → llm3 (100.0.0.42) through NAPT")
     if testing.ping(h1, '100.0.0.42', expected=True):
-        print("  [OK] ICMP outbound via SNAT → llm3 (h1)")
+        log("  [OK] ICMP outbound via SNAT → llm3 (h1)")
     else:
-        print("  [FAIL] ICMP outbound failed for llm3")
+        log("  [FAIL] ICMP outbound failed for llm3")
         all_ok = False
 
     # Test inbound to private IP: llm1 → h1 should be blocked (no direct route)
-    print("==> Testing inbound llm1 → h1 (10.0.0.50) should be blocked")
+    log("==> Testing inbound llm1 → h1 (10.0.0.50) should be blocked")
     if testing.ping(net.get('llm1'), '10.0.0.50', expected=False):
-        print("  [OK] inbound to private IP is blocked")
+        log("  [OK] inbound to private IP is blocked")
     else:
-        print("  [FAIL] private‐IP reachability unexpected")
+        log("  [FAIL] private‐IP reachability unexpected")
         all_ok = False
 
     # Test ping to an unused private IP (10.0.0.99) should fail
-    print("==> Testing ping to unused 10.0.0.99 (should fail)")
+    log("==> Testing ping to unused 10.0.0.99 (should fail)")
     if testing.ping(h1, '10.0.0.99', expected=False):
-        print("  [OK] unused private IP dropped")
+        log("  [OK] unused private IP dropped")
     else:
-        print("  [FAIL] unexpected reply from .99")
+        log("  [FAIL] unexpected reply from .99")
         all_ok = False
 
 
@@ -81,19 +94,19 @@ def run_tests(net):
     VIP = '100.0.0.45' # Virtual service IP handled by lb1
 
     # ARP test: hosts should ARP-resolve the VIP
-    print("==> Testing LB ARP for VIP")
+    log("==> Testing LB ARP for VIP")
     if testing.ping(h1, VIP, expected=True):
-        print("  [OK] h1 ARPed VIP")
+        log("  [OK] h1 ARPed VIP")
     else:
-        print("  [FAIL] h1 ARPed VIP")
+        log("  [FAIL] h1 ARPed VIP")
         all_ok = False
 
     # HTTP GET test: VIP:80 should return 200 from one of the servers
-    print("==> Testing HTTP GET → VIP")
+    log("==> Testing HTTP GET → VIP")
     if testing.curl(h1, VIP, method='GET', expected=True):
-        print("  [OK] HTTP GET through LB")
+        log("  [OK] HTTP GET through LB")
     else:
-        print("  [FAIL] HTTP GET through LB")
+        log("  [FAIL] HTTP GET through LB")
         all_ok = False
 
 
@@ -101,28 +114,28 @@ def run_tests(net):
     # --- 3) IDS tests ---
 
     # Safe POST should pass through IDS and reach LB
-    print("==> Testing IDS allows POST")
+    log("==> Testing IDS allows POST")
     if testing.curl(h1, VIP, method='POST', payload='hello', expected=True):
-        print("  [OK] POST passed IDS → LB")
+        log("  [OK] POST passed IDS → LB")
     else:
-        print("  [FAIL] POST blocked by IDS")
+        log("  [FAIL] POST blocked by IDS")
         all_ok = False
 
     # TRACE method should be blocked by IDS
-    print("==> Testing IDS blocks TRACE")
+    log("==> Testing IDS blocks TRACE")
     if testing.curl(h1, VIP, method='TRACE', expected=False):
-        print("  [OK] TRACE dropped by IDS")
+        log("  [OK] TRACE dropped by IDS")
     else:
-        print("  [FAIL] TRACE forwarded to LB")
+        log("  [FAIL] TRACE forwarded to LB")
         all_ok = False
 
     # Code-injection via PUT should be dropped/redirected to inspector
-    print("==> Testing IDS code-injection catch")
+    log("==> Testing IDS code-injection catch")
     evil = "cat /etc/passwd"
     if testing.curl(h1, VIP, method='PUT', payload=evil, expected=False):
-        print("  [OK] Injection dropped by IDS → insp")
+        log("  [OK] Injection dropped by IDS → insp")
     else:
-        print("  [FAIL] Injection made it through IDS")
+        log("  [FAIL] Injection made it through IDS")
         all_ok = False
 
     return all_ok
@@ -152,7 +165,7 @@ if __name__ == "__main__":
 
     # Run automated tests
     run_tests(net)
-    print(f"\n=== ALL TESTS {'PASSED' if success else 'FAILED'} ===\n")
+    log(f"\n=== ALL TESTS {'PASSED' if success else 'FAILED'} ===\n")
 
     # If any test failed, drop into the CLI for debugging
     if not success:

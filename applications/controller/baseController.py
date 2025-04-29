@@ -48,17 +48,17 @@ class controller (object):
             # This is the NAPT switch
             log.info("Starting NAPT")
             # Click script
-            self.devices[id] = click_wrapper.start_click("nfv/napt.click", "", "/tmp/napt.stdout", "/tmp/napt.stderr")
+            self.devices[id] = click_wrapper.start_click("/opt/pox/ext/napt.click", "", "/tmp/napt.stdout", "/tmp/napt.stderr")
         elif(id==5):
             # This is the IDS switch
             log.info("Starting IDS")
             # IDS Click script
-            self.devices[id] = click_wrapper.start_click("nfv/ids.click", "", "/tmp/ids.stdout", "/tmp/ids.stderr")
+            self.devices[id] = click_wrapper.start_click("/opt/pox/ext/ids.click", "", "/tmp/ids.stdout", "/tmp/ids.stderr")
         elif(id==6):
             # This is the Load Balancer switch
             log.info("Starting Load Balancer")
             # load-balancer Click script
-            self.devices[id] = click_wrapper.start_click("nfv/lb1.click", "", "/tmp/lb1.stdout", "/tmp/lb1.stderr")
+            self.devices[id] = click_wrapper.start_click("/opt/pox/ext/lb1.click", "", "/tmp/lb1.stdout", "/tmp/lb1.stderr")
         else:
             # Error
             log.error("Unknown device connected to the controller")

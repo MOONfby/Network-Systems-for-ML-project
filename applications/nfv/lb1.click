@@ -1,159 +1,136 @@
-define($VIRTUAL_IP 100.0.0.45, $VIRTUAL_MAC 00:00:00:00:00:45)
+avg_clientInputCount:: AverageCounter;
+avg_serverInputCount:: AverageCounter;
+avg_clientOutputCount:: AverageCounter;
+avg_serverOutputCount :: AverageCounter;
 
-// Port definitions matching actual Mininet interface names
-define($PORT1 lb1-eth1, $PORT2 lb1-eth2)
+
+arpReqCount, arpReqCount1, arpQueCount, arpQueCount1, ipCount, ipCount1, icmpCount,
+icmpCount1, dropCount, dropCount1, dropCount2, dropCount3 :: Counter;
+
 // eth1: between ids and lb1
 // eth2: between lb1 and sw3
 
-// Script will run as soon as the router starts
-Script(print "Click lb1 on $PORT1 $PORT2")
 
 // Input channels from devices
 // "SNIFFER false" allows click steals the packet from the kernel
-fd1::FromDevice($PORT1, SNIFFER false, METHOD LINUX, PROMISC true)
-fd2::FromDevice($PORT2, SNIFFER false, METHOD LINUX, PROMISC true)
+fd1 :: FromDevice(lb1-eth1, METHOD LINUX, SNIFFER false);
+fd2 :: FromDevice(lb1-eth2, METHOD LINUX, SNIFFER false);
+
 
 // Output channels to devices
-td1::ToDevice($PORT1, METHOD LINUX)
-td2::ToDevice($PORT2, METHOD LINUX)
+td1 :: ToDevice(lb1-eth1, METHOD LINUX);
+td2 :: ToDevice(lb1-eth2, METHOD LINUX);
 
-// Traffic counters for reporting
-avg_in1 :: AverageCounter
-avg_in2 :: AverageCounter
-avg_out1 :: AverageCounter
-avg_out2 :: AverageCounter
 
-// ARP Handling Elements, ensures hosts can sesolve virtual IP to virtual MAC
-arpr :: ARPResponder($VIRTUAL_IP $VIRTUAL_MAC)
-arpq :: ARPQuerier($VIRTUAL_IP, $VIRTUAL_MAC)
+// lb1-eth1 MAC: e2:2b:0a:2c:17:4f
+// lb1-eth2 MAC: 46:30:ac:19:88:09
+
+
+// numbers are packer header match patterns
+// "12/0806": 12 means offset 12 bytes from the start of the packet (Ethernet header's EtherType field), 0806 is the EtherType for ARP
+// "20/0001": means offset 32 bytes from the start, 0001 is the ARP opcode for "request"
+clientClassifier, serverClassifier :: Classifier(
+    12/0806 20/0001, //ARP requrest
+    12/0806 20/0002, //ARP respond
+    12/0800, //IP
+    - ); //others
+
+
+ipPacketClassifierClient :: IPClassifier(
+    dst 100.0.0.45 and icmp, //ICMP (ping)
+    dst 100.0.0.45 port 80 and tcp, //tcp
+    -); //others
+
+
+ipPacketClassifierServer :: IPClassifier(
+    dst 100.0.0.45 and icmp type echo, //ICMP to lb
+    src port 80 and tcp, //tcp
+    -); //others
+
+
+arpQuerierClient :: ARPQuerier(100.0.0.45/24, e2:2b:0a:2c:17:4f);
+arpQuerierServer :: ARPQuerier(100.0.0.45/24, 46:30:ac:19:88:09);
 // arpq has two input ports：
 // input 0: For IP packets that need ARP resolution
 // input 1: For ARP replies (so the ARPQuerier can update its ARP cache/table with new information)
 
 
-// Round Robin Mapper for Load Balancing HTTP traffic
-rr_mapper :: RoundRobinIPMapper($VIRTUAL_IP 80 - -    
-                               100.0.0.40 80 - 
-                               100.0.0.41 80 - 
-                               100.0.0.42 80)
+arpRespondClient :: ARPResponder(100.0.0.45/24 e2:2b:0a:2c:17:4f);
+arpRespondServer :: ARPResponder(100.0.0.45/24 46:30:ac:19:88:09);
 
-rewriter :: IPRewriter(pattern rr_mapper)             
+// Queue: pull and push commands cannot be connected
+toClient :: Queue(1024) -> avg_clientOutputCount -> td1;
+toServer :: Queue(1024) -> avg_serverOutputCount -> td2;
+
+ipPacketClient :: GetIPAddress(16) -> CheckIPHeader -> [0]arpQuerierClient -> toClient;
+ipPacketServer :: GetIPAddress(16) -> CheckIPHeader -> [0]arpQuerierServer -> toServer;
+
+ipRewrite :: IPRewriter (roundRobin);
 // input 0: handles the packets from clients to the virtual IP
 // input 1: handles the packets from servers back to the clients
 
+roundRobin :: RoundRobinIPMapper(
+    100.0.0.45 - 100.0.0.40 - 0 1,
+    100.0.0.45 - 100.0.0.41 - 0 1,
+    100.0.0.45 - 100.0.0.42 - 0 1);
 
-// Counters for specific traffic types
-arp_req_counter :: Counter    //ARP requests
-arp_resp_counter :: Counter   //ARP responses
-service_counter :: Counter    //HTTP service packets
-icmp_counter :: Counter       //ICMP
-drop_counter :: Counter       //dropped packets
+ipRewrite[0] -> ipPacketServer;
+ipRewrite[1] -> ipPacketClient;
 
+//from client
+fd1 -> avg_clientInputCount -> clientClassifier;
 
+clientClassifier[0] -> arpReqCount -> arpRespondClient -> toClient;
+// ARP request
+clientClassifier[1] -> arpQueCount -> [1]arpQuerierClient;
+// ARP respond
+clientClassifier[2] -> ipCount -> Strip(14) -> CheckIPHeader -> ipPacketClassifierClient;
+// IP
+clientClassifier[3] -> dropCount1 -> Discard;
+// others
 
-
-
-
-
-// From IDS to servers pathway
-// numbers are packer header match patterns
-// "12/0806": 12 means offset 12 bytes from the start of the packet (Ethernet header's EtherType field), 0806 is the EtherType for ARP
-// "20/0001": means offset 32 bytes from the start, 0001 is the ARP opcode for "request"
-fd1 -> avg_in1 -> classifier1 :: Classifier(
-    12/0806 20/0001,  // ARP requests
-    12/0806 20/0002,  // ARP replies
-    12/0800,          // IP packets
-    -                 // Drop others
-)
-
-
-// ARP Request Handling (from IDS side)
-classifier1[0] -> arp_req_counter -> arpr -> avg_out1 -> td1
-// takes ARP requests from the classifier ->
-// count->
-// ARPResponder generates replies claiming the virtual IP belongs to the virtual MAC ->
-// count ->
-// sends reply back through the interface toward IDS
-
-
-// ARP Reply Handling (from IDS side)
-classifier1[1] -> arp_resp_counter -> [1]arpq -> avg_out1 -> td1
-// [1]arpq: sends to the ARPQuerier to update its ARP table
-
-
-// IP Packet Processing (from IDS side)
-classifier1[2] -> Strip(14) -> CheckIPHeader -> ip_classifier :: IPClassifier(
-    proto icmp,                 // ICMP (ping)
-    proto tcp and dst port 80,  // HTTP traffic
-    -                           // Other IP traffic
-)
-// strip(14): strips the 14-byte Ethernet header
-
-
-// ICMP handling
-ip_classifier[0] -> icmp_counter -> ICMPPingResponder -> EtherEncap(0x0800, $VIRTUAL_MAC, 00:00:00:00:00:01) -> avg_out1 -> td1
-// ICMPPingResponder: generates replies to echo requests
-// EtherEncap: adds Ethernet header with virtual MAC as source
-
-
-// HTTP traffic - forward to servers using load balancer
-ip_classifier[1] -> service_counter -> [0]rewriter -> arpq -> avg_out2 -> td2
-// [0]rewriter: sends to rewriter (IPRewriter) for address translation based on the round-robin mapping
-// arpq: uses ARP querier to resolve server IPs to MACs
-
-
-// Drop other IP traffic
-ip_classifier[2] -> drop_counter -> Discard
+ipPacketClassifierClient[0] -> icmpCount -> ICMPPingResponder -> ipPacketClient;
+// ICMP
+ipPacketClassifierClient[1] -> [0]ipRewrite;
+//TCP
+ipPacketClassifierClient[2] -> dropCount -> Discard;
+// others
 
 
 
+//from server
+fd2 -> avg_serverInputCount -> serverClassifier;
+
+serverClassifier[0] -> arpReqCount1 -> arpRespondServer -> toServer;
+// ARP request
+serverClassifier[1] -> arpQueCount1 -> [1]arpQuerierServer;
+// ARP respond
+serverClassifier[2] -> ipCount1 -> Strip(14) -> CheckIPHeader -> ipPacketClassifierServer;
+// IP
+serverClassifier[3] -> dropCount2 -> Discard;
+// others
+
+ipPacketClassifierServer[0] -> icmpCount1 -> ICMPPingResponder -> ipPacketServer;
+// ICMP to lb
+ipPacketClassifierServer[1] -> [0]ipRewrite;
+// TCP
+ipPacketClassifierServer[2] -> dropCount3 -> Discard;
+// others
 
 
+DriverManager(wait, print > ../../results/lb1.report "
+        ==============lb1.report===============
+        Input Packet Rate (pps):  $(add $(avg_clientInputCount.rate) $(avg_serverInputCount.rate))
+        Output Packet Rate (pps):  $(add $(avg_clientOutputCount.rate) $(avg_serverOutputCount.rate))
 
+        Total # of input packet:  $(add $(avg_clientInputCount.count) $(avg_serverInputCount.count))
+        Total # of output packet:  $(add $(avg_clientOutputCount.count) $(avg_serverOutputCount.count))
 
+        Total # of ARP requests:  $(add $(arpReqCount.count) $(arpReqCount1.count))
+        Total # of ARP responses:  $(add $(arpQueCount.count) $(arpQueCount1.count))
 
-// From servers to IDS pathway
-fd2 -> avg_in2 -> classifier2 :: Classifier(
-    12/0806 20/0001,  // ARP requests
-    12/0806 20/0002,  // ARP replies
-    12/0800,          // IP packets
-    -                 // Drop others
-)
-
-
-// Return traffic from servers
-classifier2[2] -> Strip(14) -> CheckIPHeader -> IPClassifier(
-    src 100.0.0.40 or src 100.0.0.41 or src 100.0.0.42, // From servers
-    -                                                   // Other sources
-) -> [1]rewriter -> arpq -> avg_out1 -> td1
-
-
-// ARP handling from server side
-classifier2[0] -> td2
-classifier2[1] -> td2
-classifier2[3] -> drop_counter -> Discard
-
-
-
-
-
-
-
-// Generate report on shutdown
-DriverManager(
-    pause,
-    print > result/lb1.report "================= LB1 Report =================",
-    print > result/lb1.report "Input Packet rate (pps): $(avg_in1.rate) $(avg_in2.rate)",
-    print > result/lb1.report "Output Packet rate (pps): $(avg_out1.rate) $(avg_out2.rate)",
-    print > result/lb1.report "",
-    print > result/lb1.report "Total # of input packets: $(add $(avg_in1.count) $(avg_in2.count))",
-    print > result/lb1.report "Total # of output packets: $(add $(avg_out1.count) $(avg_out2.count))",
-    print > result/lb1.report "",
-    print > result/lb1.report "Total # of ARP requests: $(arp_req_counter.count)",
-    print > result/lb1.report "Total # of ARP responses: $(arp_resp_counter.count)",
-    print > result/lb1.report "",
-    print > result/lb1.report "Total # of service packets: $(service_counter.count)",
-    print > result/lb1.report "Total # of ICMP packets: $(icmp_counter.count)",
-    print > result/lb1.report "Total # of dropped packets: $(drop_counter.count)",
-    print > result/lb1.report "================================================"
-)
+        Total # of service packets:  $(add $(ipCount.count) $(ipCount1.count))
+        Total # of ICMP packets:  $(add $(icmpCount.count) $(icmpCount1.count))
+        Total # of dropped packets:  $(add $(dropCount.count) $(dropCount1.count) $(dropCount2.count) $(dropCount3.count))
+        ======================================",
+stop);

@@ -1,78 +1,183 @@
+// 2 variables to hold ports names
+// Define the two interfaces (ports) for the NAPT module
+// $PORT1: connects to the User Zone (h1, h2 side)
+// $PORT2: connects to the Inferencing Zone (servers side)
+define($PORT1 napt-eth1, $PORT2 napt-eth2)
 
-fromPrz, toPrz, fromDmz, toDmz :: AverageCounter;
-arpRespondInt, arpRespondExt, arpQueryInt, arpQueryExt,
-icmpExt, icmpInt, tcpInt, dropInt, dropExt, icmpEchoDropInt, icmpEchoDropExt,
-icmpReplyDropInt, icmpReplyDropExt :: Counter;
+//require(library ./forwarder.click)
+//Forwarder($PORT1, $PORT2, $VERBOSE)
 
-//defination
-fromInt :: FromDevice(napt-eth1, METHOD LINUX, SNIFFER false);
-fromExt :: FromDevice(napt-eth2, METHOD LINUX, SNIFFER false);
-toInt :: Queue -> toPrz -> ToDevice(napt-eth1);
-toExt :: Queue -> toDmz -> ToDevice(napt-eth2);
-
-arpReplyInt :: ARPResponder(10.0.0.1 02:00:00:00:00:01);
-arpReplyExt :: ARPResponder(100.0.0.1 02:00:00:00:00:02);
-
-arpRequestInt :: ARPQuerier(10.0.0.1, 02:00:00:00:00:01);
-arpRequestExt :: ARPQuerier(100.0.0.1, 02:00:00:00:00:02);
-
-ipNAT :: IPRewriter(pattern 100.0.0.1 20000-65535 - - 0 1);
-icmpNAT :: ICMPPingRewriter(pattern 100.0.0.1 20000-65535 - - 0 1);
+// Script will run as soon as the router starts
+// Print a startup banner so we know the script is running and on which ports
+Script(print "Click NAPT router on $PORT1 $PORT2")
 
 
-packetClassifierInt, packetClassifierExt :: Classifier(
-    12/0806 20/0001, //ARP request
-    12/0806 20/0002, //ARP respond
-    12/0800, //IP
-    - //rest
+// From where to pick packets
+// FromDevice elements capture incoming packets on each interface
+// SNIFFER false: remove original packet to avoid duplicates
+// PROMISC true: receive all frames, even if not addressed to us
+fd1::FromDevice($PORT1, SNIFFER false, METHOD LINUX, PROMISC true)
+fd2::FromDevice($PORT2, SNIFFER false, METHOD LINUX, PROMISC true)
+
+
+// Counters for packet rates (AveragePacketRate) right after FromDevice
+inAvg1::AverageCounter()   // measure ingress rate on PORT1
+inAvg2::AverageCounter()   // measure ingress rate on PORT2
+
+// Send packets back out each interface
+// AverageCounter right before each ToDevice measures egress rate
+outAvg1::AverageCounter()  // measure egress rate on PORT1
+outAvg2::AverageCounter()  // measure egress rate on PORT2
+
+
+// Where to send packets
+// ToDevice elements send outgoing packets back out the specified interface
+td1::ToDevice($PORT1, METHOD LINUX)
+td2::ToDevice($PORT2, METHOD LINUX)
+
+
+// -------------------- Network Functions --------------------
+
+// ARP Responders for User and Inferencing Zones
+// Responds to ARP requests asking for 10.0.0.1 (User Zone side).
+user_arp_responder :: ARPResponder(10.0.0.1 02:00:00:00:00:01)
+// Responds to ARP requests asking for 100.0.0.1 (Inferencing Zone side).
+inf_arp_responder  :: ARPResponder(100.0.0.1 02:00:00:00:00:02)
+
+// IP and ICMP Rewriters
+// - snat: Source NAT for outbound TCP (User -> Server).
+// - dnat: Destination NAT for inbound TCP (Server -> User).
+snat :: IPRewriter(10.0.0.0/24, 10.0.0.1, 0-65535, 100.0.0.0/24, 100.0.0.1, 0-65535)
+dnat :: IPRewriter(100.0.0.0/24, 100.0.0.1, 0-65535, 10.0.0.0/24, 10.0.0.1, 0-65535)
+
+
+// Handles translation for ICMP packets (Ping):
+// - icmp_snat: for ICMP Echo Requests outbound.
+// - icmp_dnat: for ICMP Echo Replies inbound.
+icmp_snat :: ICMPPingRewriter(10.0.0.0/24, 100.0.0.1)
+icmp_dnat :: ICMPPingRewriter(100.0.0.0/24, 10.0.0.1)
+
+// Traffic counters
+arpCnt1, arpCnt2 :: Counter("ARP")            // ARP packets
+tcpCnt1, tcpCnt2 :: Counter("TCP")            // TCP packets
+icmpCnt1, icmpCnt2 :: Counter("ICMP")         // ICMP packets
+dropCnt1, dropCnt2 :: Counter("IP_DROPPED")   // Dropped IP packets
+dropL2_1, dropL2_2 :: Counter("L2_DROPPED")   // Dropped Ethernet frames
+
+// Classifiers for Ethernet type
+ethClassifier1 :: Classifier(
+    12/0806 20/0001, // ARP Request
+    12/0806 20/0002, // ARP Reply
+    12/0800,         // IPv4 Packet
+    -                // Other
 )
 
-ipClassifierInt, ipClassifierExt :: IPClassifier(
-    tcp,
-    icmp type echo,
-    icmp type echo-reply,
-    -
+ethClassifier2 :: Classifier(
+    12/0806 20/0001, // ARP Request
+    12/0806 20/0002, // ARP Reply
+    12/0800,         // IPv4 Packet
+    -                // Other
 )
 
-fromInt -> fromPrz -> packetClassifierInt;
-packetClassifierInt[0] -> arpQueryInt -> arpReplyInt -> toInt;
-packetClassifierInt[1] -> arpRespondInt -> [1]arpRequestInt;
-packetClassifierInt[2] -> Strip(14) -> CheckIPHeader -> ipClassifierInt;
-packetClassifierInt[3] -> dropInt -> Discard;
+// IP Classifiers for protocols inside IPv4
+ipClassifier1 :: IPClassifier(
+    tcp,                    // - TCP
+    icmp type echo,         // - ICMP Echo Request
+    icmp type echo-reply,   // - ICMP Echo Reply
+    -                       // - All other (drop)
+)
+
+ipClassifier2 :: IPClassifier(
+    tcp,                    // - TCP
+    icmp type echo,         // - ICMP Echo Request
+    icmp type echo-reply,   // - ICMP Echo Reply
+    -                       // - All other (drop)
+)
+
+// ======================= USER ZONE PIPELINE =======================
+fd1 -> inAvg1 -> ethClassifier1
+
+// Handle ARP request/reply
+ethClassifier1[0] -> arpCnt1 -> user_arp_responder -> outAvg1 -> td1
+ethClassifier1[1] -> arpCnt1 -> user_arp_responder -> outAvg1 -> td1
+
+// IPv4 packets
+ethClassifier1[2]
+    -> Strip(14)        // Remove Ethernet header (14 bytes)
+    -> CheckIPHeader    // Validate IP header checksum
+    -> ipClassifier1    // Classify IP payload
+
+// TCP packets (Outbound traffic)
+// TCP: Source NAT then forward
+ipClassifier1[0] -> tcpCnt1 -> snat -> Queue -> outAvg2 -> td2
+
+// ICMP Echo Request (Ping Outbound)
+// ICMP Echo Request: NAT and forward
+ipClassifier1[1] -> icmpCnt1 -> icmp_snat -> Queue -> outAvg2 -> td2
+
+// ICMP Echo Reply (not expected from User Zone) — drop
+ipClassifier1[2] -> dropCnt1 -> Discard
+
+// Other IP traffic — drop
+ipClassifier1[3] -> dropCnt1 -> Discard
+
+// Other (non-IP, non-ARP) Ethernet frames - drop
+ethClassifier1[3] -> dropL2_1 -> Discard
+
+// ======================= INFERENCING ZONE PIPELINE =======================
+fd2 -> inAvg2 -> ethClassifier2
+
+// Handle ARP request/reply
+ethClassifier2[0] -> arpCnt2 -> inf_arp_responder -> outAvg2 -> td2   // ARP Requests
+ethClassifier2[1] -> arpCnt2 -> inf_arp_responder -> outAvg2 -> td2   // ARP Replies
+
+// IPv4 packets
+ethClassifier2[2]
+    -> Strip(14)        // Remove Ethernet header
+    -> CheckIPHeader    // Validate IP header
+    -> ipClassifier2    // Classify IP payload
+
+// TCP packets (Inbound traffic)
+// TCP: Destination NAT then forward
+ipClassifier2[0] -> tcpCnt2 -> dnat -> Queue -> outAvg1 -> td1
+
+// ICMP Echo Request (from servers)
+// ICMP Echo Request: NAT and forward
+ipClassifier2[1] -> icmpCnt2 -> icmp_dnat -> Queue -> outAvg1 -> td1
+
+// ICMP Echo Reply (from servers)
+// ICMP Echo Reply: NAT and forward
+ipClassifier2[2] -> icmpCnt2 -> icmp_dnat -> Queue -> outAvg1 -> td1
+
+// Other IP traffic — drop
+ipClassifier2[3] -> dropCnt2 -> Discard
+
+// Other (non-IP, non-ARP) Ethernet frames — drop
+ethClassifier2[3] -> dropL2_2 -> Discard
 
 
-ipClassifierInt[0] -> tcpInt -> ipNAT[0] -> [0]arpRequestExt -> toExt;
-ipClassifierInt[1] -> icmpInt -> icmpNAT[0] -> [0]arpRequestExt -> toExt;
-ipClassifierInt[2] -> icmpEchoDropInt -> Discard;
-ipClassifierInt[3] -> icmpReplyDropInt -> Discard;
+// Print something on exit
+// DriverManager will listen on router's events
+// The pause instruction will wait until the process terminates
+// Then the prints will run an Click will exit
 
-fromExt -> fromDmz -> packetClassifierExt;
-packetClassifierExt[0] -> arpQueryExt -> arpReplyExt -> toExt;
-packetClassifierExt[1] -> arpRespondExt -> [1]arpRequestExt;
-packetClassifierExt[2] -> Strip(14) -> CheckIPHeader -> ipClassifierExt;
-packetClassifierExt[3] -> dropExt -> Discard;
-
-ipClassifierExt[0] -> ipNAT[1] -> [0]arpRequestInt -> toInt;
-ipClassifierExt[1] -> icmpEchoDropExt -> Discard;
-ipClassifierExt[2] -> icmpExt -> icmpNAT[1] -> [0]arpRequestInt -> toInt;
-ipClassifierExt[3] -> icmpReplyDropExt -> Discard;
-
-
-
-
-DriverManager(wait, print > ../../results/napt.report "
-        ===================== NAPT Report ====================
-        Input Packet Rate (pps): $(add $(fromPrz.rate) $(fromDmz.rate))
-        Output Packet Rate(pps): $(add $(toPrz.rate) $(toDmz.rate))
-
-        Total # of input packets: $(add $(fromPrz.count) $(fromDmz.count))
-        Total # of output packets: $(add $(toPrz.count) $(toDmz.count))
-
-        Total # of ARP request packets: $(add $(arpQueryInt.count) $(arpQueryExt.count))
-        Total # of ARP reply packets: $(add $(arpRespondInt.count) $(arpRespondExt.count))
-
-        Total # of service requests packets: $(add $(tcpInt.count))
-        Total # of ICMP packets: $(add $(icmpInt.count) $(icmpExt.count))
-        Total # of dropped packets: $(add $(dropInt.count) $(dropExt.count) $(icmpEchoDropInt.count) $(icmpEchoDropExt.count) $(icmpReplyDropInt.count) $(icmpReplyDropExt.count))
-        ======================================================",
-        stop);
+// DriverManager keeps script alive and prints summary on shutdown
+// Write counters to napt.report on shutdown
+DriverManager(
+  file "result/napt.report",
+  print "=============== NAPT Report ===============",
+  print "Port1 InRate (pps): $(inAvg1.rate)",
+  print "Port1 OutRate (pps): $(outAvg1.rate)",
+  print "Port2 InRate (pps): $(inAvg2.rate)",
+  print "Port2 OutRate (pps): $(outAvg2.rate)",
+  print "ARP packets (in1): $(arpCnt1.count)",
+  print "TCP packets (in1): $(tcpCnt1.count)",
+  print "ICMP packets (in1): $(icmpCnt1.count)",
+  print "Dropped IP (in1): $(dropCnt1.count)",
+  print "Dropped L2 (in1): $(dropL2_1.count)",
+  print "ARP packets (in2): $(arpCnt2.count)",
+  print "TCP packets (in2): $(tcpCnt2.count)",
+  print "ICMP packets (in2): $(icmpCnt2.count)",
+  print "Dropped IP (in2): $(dropCnt2.count)",
+  print "Dropped L2 (in2): $(dropL2_2.count)"
+)

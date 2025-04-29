@@ -7,12 +7,24 @@ avg_serverOutputCount :: AverageCounter;
 arpReqCount, arpReqCount1, arpQueCount, arpQueCount1, ipCount, ipCount1, icmpCount,
 icmpCount1, dropCount, dropCount1, dropCount2, dropCount3 :: Counter;
 
+avg_clientInputCount:: AverageCounter;
+avg_serverInputCount:: AverageCounter;
+avg_clientOutputCount:: AverageCounter;
+avg_serverOutputCount :: AverageCounter;
+
+
+arpReqCount, arpReqCount1, arpQueCount, arpQueCount1, ipCount, ipCount1, icmpCount,
+icmpCount1, dropCount, dropCount1, dropCount2, dropCount3 :: Counter;
+
 // eth1: between ids and lb1
 // eth2: between lb1 and sw3
 
 
 // Input channels from devices
 // "SNIFFER false" allows click steals the packet from the kernel
+fd1 :: FromDevice(lb1-eth1, METHOD LINUX, SNIFFER false);
+fd2 :: FromDevice(lb1-eth2, METHOD LINUX, SNIFFER false);
+
 fd1 :: FromDevice(lb1-eth1, METHOD LINUX, SNIFFER false);
 fd2 :: FromDevice(lb1-eth2, METHOD LINUX, SNIFFER false);
 
@@ -50,11 +62,54 @@ ipPacketClassifierServer :: IPClassifier(
 
 arpQuerierClient :: ARPQuerier(100.0.0.45/24, e2:2b:0a:2c:17:4f);
 arpQuerierServer :: ARPQuerier(100.0.0.45/24, 46:30:ac:19:88:09);
+td1 :: ToDevice(lb1-eth1, METHOD LINUX);
+td2 :: ToDevice(lb1-eth2, METHOD LINUX);
+
+
+// lb1-eth1 MAC: e2:2b:0a:2c:17:4f
+// lb1-eth2 MAC: 46:30:ac:19:88:09
+
+
+// numbers are packer header match patterns
+// "12/0806": 12 means offset 12 bytes from the start of the packet (Ethernet header's EtherType field), 0806 is the EtherType for ARP
+// "20/0001": means offset 32 bytes from the start, 0001 is the ARP opcode for "request"
+clientClassifier, serverClassifier :: Classifier(
+    12/0806 20/0001, //ARP requrest
+    12/0806 20/0002, //ARP respond
+    12/0800, //IP
+    - ); //others
+
+
+ipPacketClassifierClient :: IPClassifier(
+    dst 100.0.0.45 and icmp, //ICMP (ping)
+    dst 100.0.0.45 port 80 and tcp, //tcp
+    -); //others
+
+
+ipPacketClassifierServer :: IPClassifier(
+    dst 100.0.0.45 and icmp type echo, //ICMP to lb
+    src port 80 and tcp, //tcp
+    -); //others
+
+
+arpQuerierClient :: ARPQuerier(100.0.0.45/24, e2:2b:0a:2c:17:4f);
+arpQuerierServer :: ARPQuerier(100.0.0.45/24, 46:30:ac:19:88:09);
 // arpq has two input ports：
 // input 0: For IP packets that need ARP resolution
 // input 1: For ARP replies (so the ARPQuerier can update its ARP cache/table with new information)
 
 
+arpRespondClient :: ARPResponder(100.0.0.45/24 e2:2b:0a:2c:17:4f);
+arpRespondServer :: ARPResponder(100.0.0.45/24 46:30:ac:19:88:09);
+
+// Queue: pull and push commands cannot be connected
+toClient :: Queue(1024) -> avg_clientOutputCount -> td1;
+toServer :: Queue(1024) -> avg_serverOutputCount -> td2;
+
+ipPacketClient :: GetIPAddress(16) -> CheckIPHeader -> [0]arpQuerierClient -> toClient;
+ipPacketServer :: GetIPAddress(16) -> CheckIPHeader -> [0]arpQuerierServer -> toServer;
+
+ipRewrite :: IPRewriter (roundRobin);
 arpRespondClient :: ARPResponder(100.0.0.45/24 e2:2b:0a:2c:17:4f);
 arpRespondServer :: ARPResponder(100.0.0.45/24 46:30:ac:19:88:09);
 

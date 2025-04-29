@@ -7,13 +7,6 @@ from mininet.node import OVSSwitch
 from topology import *
 import testing
 import sys
-import os
-
-log_file_path = './results/phase_1_report'
-
-# Ensure the results directory exists
-os.makedirs(os.path.dirname(log_file_path), exist_ok=True)
-
 
 topos = {'mytopo': (lambda: MyTopo())}
 

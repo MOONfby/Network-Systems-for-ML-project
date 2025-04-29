@@ -453,5 +453,4 @@ DriverManager(
     Packet Rate to INSP (pps): $(rate_to_insp.rate)
     Total # of packets to INSP: $(rate_to_insp.count)
     "
-
-)
+);

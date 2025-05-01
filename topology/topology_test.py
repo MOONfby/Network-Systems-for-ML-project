@@ -7,6 +7,13 @@ from mininet.node import OVSSwitch
 from topology import *
 import testing
 import sys
+import os
+
+log_file_path = './results/phase_1_report'
+
+# Ensure the results directory exists
+os.makedirs(os.path.dirname(log_file_path), exist_ok=True)
+
 
 topos = {'mytopo': (lambda: MyTopo())}
 
@@ -161,8 +168,8 @@ if __name__ == "__main__":
     log(f"\n=== ALL TESTS {'PASSED' if success else 'FAILED'} ===\n")
 
     # If any test failed, drop into the CLI for debugging
-    if not success:
-        CLI(net)
+    # if not success:
+    #     CLI(net)
 
     # Clean up and exit with appropriate status code
     net.stop()

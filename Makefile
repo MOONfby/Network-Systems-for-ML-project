@@ -28,6 +28,8 @@ test:
 	touch $(results_dir)napt.report
 	make app > $(controller_file) &
 	sudo python ./topology/topology_test.py > $(results_file)
+
+	sleep 10
 	make clean
 
 clean:
